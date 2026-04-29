@@ -96,10 +96,46 @@ exports.createBook = async (req, res) => {
 exports.updateBook = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    const { title, author, description, category, price, details } = req.body;
+    const files = req.files;
 
-    if (updateData.details && typeof updateData.details === 'string') {
-      updateData.details = JSON.parse(updateData.details);
+    let updateData = {
+      title,
+      author,
+      description,
+      category,
+      price,
+      details: typeof details === 'string' ? JSON.parse(details) : details
+    };
+
+    // Upload new book file if exists
+    if (files && files.file) {
+      const file = files.file[0];
+      const fileName = `${Date.now()}_${file.originalname.replace(/\s+/g, '_')}`;
+      const { error: uploadError } = await supabase.storage
+        .from('books')
+        .upload(fileName, file.buffer, {
+          contentType: file.mimetype,
+          upsert: true
+        });
+      
+      if (uploadError) throw uploadError;
+      updateData.file_url = supabase.storage.from('books').getPublicUrl(fileName).data.publicUrl;
+    }
+
+    // Upload new cover image if exists
+    if (files && files.cover) {
+      const cover = files.cover[0];
+      const coverName = `${Date.now()}_${cover.originalname.replace(/\s+/g, '_')}`;
+      const { error: uploadError } = await supabase.storage
+        .from('covers')
+        .upload(coverName, cover.buffer, {
+          contentType: cover.mimetype,
+          upsert: true
+        });
+      
+      if (uploadError) throw uploadError;
+      updateData.cover_url = supabase.storage.from('covers').getPublicUrl(coverName).data.publicUrl;
     }
 
     const { data, error } = await supabase

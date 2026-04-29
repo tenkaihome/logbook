@@ -17,7 +17,10 @@ router.post('/', upload.fields([
 ]), bookController.createBook);
 
 // Update a book
-router.put('/:id', bookController.updateBook);
+router.put('/:id', upload.fields([
+  { name: 'file', maxCount: 1 },
+  { name: 'cover', maxCount: 1 }
+]), bookController.updateBook);
 
 // Delete a book
 router.delete('/:id', bookController.deleteBook);
