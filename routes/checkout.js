@@ -20,19 +20,51 @@ router.post('/create-checkout-session', async (req, res) => {
       quantity: item.quantity,
     }));
 
+    // Store book IDs in metadata to retrieve after payment
+    const bookIds = items.map(item => item.id).join(',');
+
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: lineItems,
       mode: 'payment',
-      success_url: `${frontendUrl}/success`,
+      success_url: `${frontendUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${frontendUrl}/cart`,
+      metadata: {
+        book_ids: bookIds
+      }
     });
 
     res.json({ id: session.id, url: session.url });
   } catch (error) {
     console.error('Stripe error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// New route to retrieve session details and book files
+router.get('/session/:id', async (req, res) => {
+  try {
+    const session = await stripe.checkout.sessions.retrieve(req.params.id);
+    if (session.payment_status !== 'paid') {
+      return res.status(400).json({ error: 'Payment not completed' });
+    }
+
+    const bookIds = session.metadata.book_ids.split(',');
+    
+    // Get book details from Supabase using the IDs
+    const supabase = require('../supabase');
+    const { data: books, error } = await supabase
+      .from('books')
+      .select('id, title, file_url, cover_url')
+      .in('id', bookIds);
+
+    if (error) throw error;
+
+    res.json({ books });
+  } catch (error) {
+    console.error('Error retrieving session:', error);
     res.status(500).json({ error: error.message });
   }
 });
