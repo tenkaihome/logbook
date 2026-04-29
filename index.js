@@ -24,7 +24,7 @@ app.use('/api/books', bookRoutes);
 app.use('/api/checkout', checkoutRoutes);
 
 app.get('/', (req, res) => {
-  res.send('Bookpatr Backend API is running...');
+  res.send('Bookpatr Backend API is running.....');
 });
 
 if (process.env.NODE_ENV !== 'production') {
