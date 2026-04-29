@@ -1,0 +1,136 @@
+const supabase = require('../supabase');
+
+exports.getAllBooks = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('books')
+      .select('*');
+    
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    console.error('Error in getAllBooks:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getBookById = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('books')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+    
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Book not found' });
+    res.json(data);
+  } catch (error) {
+    console.error('Error in getBookById:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.createBook = async (req, res) => {
+  try {
+    const { title, author, description, category, price, details } = req.body;
+    const files = req.files;
+
+    let fileUrl = '';
+    let coverUrl = '';
+
+    // Upload book file if exists
+    if (files && files.file) {
+      const file = files.file[0];
+      const fileName = `${Date.now()}_${file.originalname.replace(/\s+/g, '_')}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('books')
+        .upload(fileName, file.buffer, {
+          contentType: file.mimetype,
+          upsert: true
+        });
+      
+      if (uploadError) throw uploadError;
+      fileUrl = supabase.storage.from('books').getPublicUrl(fileName).data.publicUrl;
+    }
+
+    // Upload cover image if exists
+    if (files && files.cover) {
+      const cover = files.cover[0];
+      const coverName = `${Date.now()}_${cover.originalname.replace(/\s+/g, '_')}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('covers')
+        .upload(coverName, cover.buffer, {
+          contentType: cover.mimetype,
+          upsert: true
+        });
+      
+      if (uploadError) throw uploadError;
+      coverUrl = supabase.storage.from('covers').getPublicUrl(coverName).data.publicUrl;
+    }
+
+    const bookData = { 
+      title, 
+      author, 
+      description, 
+      category, 
+      price, 
+      details: typeof details === 'string' ? JSON.parse(details) : details,
+      file_url: fileUrl,
+      cover_url: coverUrl
+    };
+
+    const { data, error } = await supabase
+      .from('books')
+      .insert([bookData])
+      .select();
+    
+    if (error) throw error;
+    res.status(201).json(data[0]);
+  } catch (error) {
+    console.error('Error in createBook:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.updateBook = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    if (updateData.details && typeof updateData.details === 'string') {
+      updateData.details = JSON.parse(updateData.details);
+    }
+
+    const { data, error } = await supabase
+      .from('books')
+      .update(updateData)
+      .eq('id', id)
+      .select();
+    
+    if (error) throw error;
+    res.json(data[0]);
+  } catch (error) {
+    console.error('Error in updateBook:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.deleteBook = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Optional: Delete files from storage too
+    // For now, just delete the record
+    const { error } = await supabase
+      .from('books')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    res.json({ message: 'Book deleted successfully' });
+  } catch (error) {
+    console.error('Error in deleteBook:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
